@@ -1,4 +1,4 @@
-# 🔍 HistoryLens
+# HistoryLens - A Vibe Coding Project for Browser Investigations
 
 **HistoryLens** is a simple tool to help you see what's in your browser history. Just drop in your history file and see your stats, most visited sites, and downloads in a clean dashboard.
 
@@ -10,20 +10,11 @@
 3.  **Explore:** See how many hours you spent on social media or what files you've downloaded.
 
 ### What it Does
-*  **Summarizes everything:** See your total visits and "peak browsing" hours.
-* 🌐 **Top Sites:** View a list of the websites you visit the most.
-* 🔍 **Search History:** Look back at your recent Google/Bing searches.
-* 🛡 **Safety Check:** Connect to VirusTotal to check if your downloads were safe.
-* 🤖 **AI Chat:** Use an AI key to get a "Productivity Score" and browsing tips.
+**Summarizes everything:** See your total visits and "peak browsing" hours.
+**Top Sites:** View a list of the websites you visit the most.
+**Search History:** Look back at your recent Google/Bing searches.
+**Safety Check:** Connect to VirusTotal to check if your downloads were safe.
+**AI Chat:** Use an AI key to get a "Productivity Score" and browsing tips.
 
-### 📁 Supported Files
-* **Chrome / Edge / Brave:** `History` file
-* **Firefox:** `places.sqlite`
-* **Generic:** `.csv`, `.json`, or `.txt` files
-
-### 🔒 Privacy
-This app runs **100% locally**. Your history stays in your browser and disappears the moment you close the tab. No accounts, no tracking, no uploads.
 
 ---
-
-*Simple. Private. Fast.*
