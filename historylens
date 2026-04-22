@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HistoryLens — Browser Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07080f; --surface: #0e0f1a; --surface2: #161728;
+  --border: #1e2035; --border2: #2a2d4a;
+  --accent: #00e5ff; --accent-dim: rgba(0,229,255,0.12); --accent3: #f59e0b;
+  --danger: #ef4444; --success: #10b981;
+  --text: #e4e4f0; --muted: #5a5b70; --muted2: #8888a0;
+  --mono: 'Space Mono', monospace; --sans: 'Syne', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0;animation:gridShift 40s linear infinite;}
+@keyframes gridShift{to{background-position:44px 44px;}}
+body::after{content:'';position:fixed;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);z-index:10;}
+.app{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:0 1.5rem 5rem;}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:1.6rem 0 1.4rem;border-bottom:1px solid var(–border);margin-bottom:2.5rem;}
+.header-left{display:flex;align-items:baseline;gap:1rem;}
+.logo{font-size:2rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(–accent) 30%,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(–accent);margin:0 2px 1px;vertical-align:middle;-webkit-text-fill-color:initial;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+.tagline{font-family:var(–mono);font-size:0.65rem;color:var(–muted);text-transform:uppercase;letter-spacing:0.14em;}
+.header-right{display:flex;align-items:center;gap:0.75rem;}
+.vt-key-btn{font-family:var(–mono);font-size:0.6rem;letter-spacing:0.06em;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.07);color:#f87171;text-transform:uppercase;transition:all 0.2s;}
+.vt-key-btn:hover{border-color:var(–danger);background:rgba(239,68,68,0.14);}
+.vt-key-btn.active{border-color:rgba(16,185,129,0.35);background:rgba(16,185,129,0.07);color:var(–success);}
+
+/* UPLOAD */
+.upload-section{margin-bottom:2.5rem;}
+.drop-zone{border:1px dashed var(–border2);border-radius:16px;padding:3.5rem 2rem;text-align:center;cursor:pointer;transition:all 0.3s ease;background:var(–surface);position:relative;overflow:hidden;user-select:none;}
+.drop-zone::before{content:’’;position:absolute;inset:0;background:radial-gradient(ellipse at 50% -20%,rgba(0,229,255,0.07),transparent 65%);pointer-events:none;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(–accent);background:#0c1520;box-shadow:0 0 40px rgba(0,229,255,0.08);}
+.drop-icon{font-size:2.8rem;margin-bottom:1rem;}
+.drop-title{font-size:1.15rem;font-weight:700;margin-bottom:0.5rem;}
+.drop-sub{font-family:var(–mono);font-size:0.7rem;color:var(–muted);}
+.drop-sub span{color:var(–accent);}
+.format-pills{display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;margin-top:1.4rem;}
+.pill{font-family:var(–mono);font-size:0.6rem;padding:0.22rem 0.55rem;border-radius:99px;border:1px solid var(–border2);color:var(–muted);text-transform:uppercase;letter-spacing:0.08em;}
+.pill.active{border-color:rgba(0,229,255,0.4);color:var(–accent);background:var(–accent-dim);}
+#fileInput{display:none;}
+.btn-row{display:flex;gap:0.75rem;margin-top:1.2rem;justify-content:center;}
+.btn{font-family:var(–mono);font-size:0.7rem;letter-spacing:0.06em;padding:0.55rem 1.3rem;border-radius:7px;cursor:pointer;border:1px solid;transition:all 0.2s;text-transform:uppercase;}
+.btn-ghost{background:transparent;border-color:var(–border2);color:var(–muted2);}
+.btn-ghost:hover{border-color:var(–accent);color:var(–accent);background:var(–accent-dim);}
+.btn-primary{background:var(–accent);border-color:var(–accent);color:#000;font-weight:700;}
+.btn-primary:hover{background:#00cfea;box-shadow:0 0 20px rgba(0,229,255,0.3);}
+
+/* TOOLBAR */
+.toolbar{display:flex;justify-content:flex-end;margin-bottom:1.2rem;}
+.btn-clear{font-family:var(–mono);font-size:0.62rem;letter-spacing:0.06em;padding:0.35rem 0.85rem;border-radius:6px;cursor:pointer;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.07);color:#f87171;transition:all 0.2s;text-transform:uppercase;margin-left:auto;white-space:nowrap;}
+.btn-clear:hover{background:rgba(239,68,68,0.15);border-color:var(–danger);}
+
+/* STATS */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(–border);border-radius:12px;overflow:hidden;margin-bottom:2rem;border:1px solid var(–border);}
+.stat{background:var(–surface);padding:1.1rem 1.3rem;transition:background 0.2s;}
+.stat:hover{background:var(–surface2);}
+.stat-val{font-size:1.9rem;font-weight:800;line-height:1;letter-spacing:-0.03em;}
+.stat-label{font-family:var(–mono);font-size:0.58rem;color:var(–muted);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.35rem;}
+.stat-val.cyan{color:var(–accent);} .stat-val.purple{color:#a78bfa;} .stat-val.amber{color:var(–accent3);} .stat-val.green{color:var(–success);}
+
+/* EXPORT BAR */
+.export-bar{display:flex;align-items:center;gap:0.6rem;margin-bottom:1.5rem;padding:0.9rem 1.1rem;background:var(–surface);border:1px solid var(–border);border-radius:10px;flex-wrap:wrap;}
+.export-label{font-family:var(–mono);font-size:0.6rem;color:var(–muted);text-transform:uppercase;letter-spacing:0.12em;margin-right:0.3rem;}
+.export-btn{font-family:var(–mono);font-size:0.65rem;letter-spacing:0.06em;padding:0.4rem 0.9rem;border-radius:6px;cursor:pointer;border:1px solid;transition:all 0.2s;text-transform:uppercase;}
+.export-btn-csv{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.3);color:var(–success);}
+.export-btn-csv:hover{background:rgba(16,185,129,0.16);border-color:var(–success);}
+.export-btn-json{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.25);color:var(–accent);}
+.export-btn-json:hover{background:rgba(0,229,255,0.12);border-color:var(–accent);}
+.export-count{margin-left:auto;font-family:var(–mono);font-size:0.6rem;color:var(–muted);}
+
+/* TABS */
+.tabs{display:flex;border-bottom:1px solid var(–border);margin-bottom:2rem;overflow-x:auto;}
+.tab{font-family:var(–mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;padding:0.8rem 1.3rem;cursor:pointer;border-bottom:2px solid transparent;color:var(–muted);transition:all 0.2s;background:none;border-top:none;border-left:none;border-right:none;white-space:nowrap;}
+.tab:hover{color:var(–text);}
+.tab.active{color:var(–accent);border-bottom-color:var(–accent);}
+
+/* PANELS */
+.panel{display:none;}
+.panel.active{display:block;animation:fadeIn 0.3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* FILTER */
+.filter-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.4rem;align-items:center;}
+.filter-label{font-family:var(–mono);font-size:0.6rem;color:var(–muted);text-transform:uppercase;letter-spacing:0.1em;}
+.filter-btn{font-family:var(–mono);font-size:0.6rem;text-transform:uppercase;letter-spacing:0.07em;padding:0.28rem 0.65rem;border-radius:5px;cursor:pointer;border:1px solid var(–border2);background:transparent;color:var(–muted);transition:all 0.15s;}
+.filter-btn:hover,.filter-btn.on{border-color:var(–accent);color:var(–accent);background:var(–accent-dim);}
+
+/* TIMELINE */
+.tl-day{margin-bottom:2.5rem;}
+.tl-day-header{font-family:var(–mono);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.14em;color:var(–accent);padding:0.4rem 0.9rem;background:rgba(0,229,255,0.06);border-left:3px solid var(–accent);margin-bottom:1rem;border-radius:0 5px 5px 0;}
+.tl-entries{display:flex;flex-direction:column;gap:0.45rem;}
+.tl-entry{display:grid;grid-template-columns:68px 30px 1fr auto;align-items:center;gap:0.8rem;padding:0.7rem 1rem;border-radius:9px;background:var(–surface);border:1px solid var(–border);transition:border-color 0.2s,background 0.2s,transform 0.15s;animation:slideIn 0.3s ease both;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.tl-entry:hover{border-color:var(–border2);background:var(–surface2);transform:translateX(2px);}
+.tl-entry.download{border-left:3px solid var(–accent3);}
+.tl-entry.search{border-left:3px solid #a78bfa;}
+.tl-entry.social{border-left:3px solid var(–success);}
+.tl-entry.video{border-left:3px solid var(–danger);}
+.tl-time{font-family:var(–mono);font-size:0.63rem;color:var(–muted);white-space:nowrap;}
+.tl-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;flex-shrink:0;}
+.icon-page{background:var(–accent-dim);} .icon-download{background:rgba(245,158,11,0.12);} .icon-search{background:rgba(124,58,237,0.15);} .icon-social{background:rgba(16,185,129,0.1);} .icon-video{background:rgba(239,68,68,0.1);}
+.tl-info{min-width:0;}
+.tl-title{font-size:0.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tl-url{font-family:var(–mono);font-size:0.58rem;color:var(–muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.tl-badge{font-family:var(–mono);font-size:0.56rem;padding:0.15rem 0.45rem;border-radius:4px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.05em;}
+.badge-dl{background:rgba(245,158,11,0.12);color:var(–accent3);border:1px solid rgba(245,158,11,0.25);}
+.badge-search{background:rgba(124,58,237,0.12);color:#a78bfa;border:1px solid rgba(124,58,237,0.25);}
+.badge-social{background:rgba(16,185,129,0.1);color:var(–success);border:1px solid rgba(16,185,129,0.2);}
+.badge-video{background:rgba(239,68,68,0.08);color:#f87171;border:1px solid rgba(239,68,68,0.2);}
+
+/* DOMAINS */
+.domain-grid{display:flex;flex-direction:column;gap:0.5rem;}
+.domain-row{display:flex;align-items:center;gap:1rem;padding:0.8rem 1rem;background:var(–surface);border-radius:9px;border:1px solid var(–border);transition:border-color 0.2s;}
+.domain-row:hover{border-color:var(–border2);}
+.domain-rank{font-family:var(–mono);font-size:0.62rem;color:var(–muted);width:22px;text-align:right;flex-shrink:0;}
+.domain-bar-wrap{flex:1;}
+.domain-name{font-size:0.82rem;font-weight:600;margin-bottom:0.35rem;}
+.domain-bar-bg{height:3px;background:var(–border2);border-radius:2px;overflow:hidden;}
+.domain-bar-fill{height:100%;background:linear-gradient(90deg,var(–accent),#7c3aed);border-radius:2px;transition:width 1s cubic-bezier(0.4,0,0.2,1);width:0;}
+.domain-count{font-family:var(–mono);font-size:0.68rem;color:var(–accent);white-space:nowrap;}
+
+/* REPORT */
+.report{display:flex;flex-direction:column;gap:1.2rem;}
+.report-card{background:var(–surface);border:1px solid var(–border);border-radius:12px;padding:1.4rem 1.6rem;position:relative;overflow:hidden;}
+.report-card::before{content:’’;position:absolute;left:0;top:0;bottom:0;width:3px;}
+.report-card.info::before{background:var(–accent);} .report-card.warning::before{background:var(–accent3);} .report-card.neutral::before{background:var(–muted);} .report-card.positive::before{background:var(–success);}
+.rc-head{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.9rem;}
+.rc-icon{font-size:1.1rem;} .rc-title{font-size:0.95rem;font-weight:700;} .rc-badge{margin-left:auto;}
+.rc-body{font-family:var(–mono);font-size:0.7rem;color:#9090a8;line-height:1.75;}
+.rc-body ul{list-style:none;display:flex;flex-direction:column;gap:0.4rem;}
+.rc-body li::before{content:’→ ’;color:var(–accent);}
+.rc-body .highlight{color:var(–accent);font-weight:700;} .rc-body .warn{color:var(–accent3);} .rc-body .ok{color:var(–success);}
+
+/* VIRUSTOTAL */
+.vt-btn{font-family:var(–mono);font-size:0.56rem;letter-spacing:0.06em;padding:0.18rem 0.55rem;border-radius:4px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.06);color:var(–accent);text-transform:uppercase;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.vt-btn:hover{background:rgba(0,229,255,0.14);border-color:var(–accent);}
+.vt-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.vt-result{font-family:var(–mono);font-size:0.58rem;padding:0.18rem 0.55rem;border-radius:4px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.06em;flex-shrink:0;}
+.vt-clean{background:rgba(16,185,129,0.1);color:var(–success);border:1px solid rgba(16,185,129,0.25);}
+.vt-suspicious{background:rgba(245,158,11,0.1);color:var(–accent3);border:1px solid rgba(245,158,11,0.25);}
+.vt-malicious{background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);}
+.vt-error{background:rgba(90,95,114,0.15);color:var(–muted2);border:1px solid var(–border2);}
+
+/* VT MODAL */
+.vt-modal-overlay,.ai-modal-overlay{position:fixed;inset:0;background:rgba(7,8,15,0.88);display:flex;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(8px);}
+.vt-modal-overlay.hidden,.ai-modal-overlay.hidden{display:none;}
+.vt-modal{background:var(–surface);border:1px solid var(–border2);border-radius:16px;padding:2rem;width:100%;max-width:460px;margin:1rem;}
+.vt-modal-header{display:flex;align-items:center;gap:0.8rem;margin-bottom:1.2rem;}
+.vt-modal-icon{width:36px;height:36px;border-radius:9px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.vt-modal-title{font-size:1rem;font-weight:700;}
+.vt-modal-sub{font-family:var(–mono);font-size:0.6rem;color:var(–muted);margin-top:2px;}
+.vt-modal-close{margin-left:auto;background:none;border:none;color:var(–muted);cursor:pointer;font-size:1.1rem;padding:0.2rem;}
+.vt-modal-close:hover{color:var(–text);}
+.vt-modal-info{font-family:var(–mono);font-size:0.65rem;color:var(–muted2);line-height:1.7;margin-bottom:1.2rem;padding:0.9rem 1rem;background:var(–bg);border-radius:8px;border:1px solid var(–border);}
+.vt-modal-info a{color:var(–accent);text-decoration:none;}
+.vt-key-wrap{position:relative;margin-bottom:0.7rem;}
+.vt-key-input{width:100%;background:var(–bg);border:1px solid var(–border2);border-radius:8px;padding:0.7rem 2.8rem 0.7rem 1rem;color:var(–text);font-family:var(–mono);font-size:0.72rem;outline:none;transition:border-color 0.2s;}
+.vt-key-input:focus{border-color:var(–accent);box-shadow:0 0 0 2px rgba(0,229,255,0.1);}
+.vt-eye-btn{position:absolute;right:0.7rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(–muted);cursor:pointer;font-size:0.85rem;}
+.vt-status{font-family:var(–mono);font-size:0.62rem;min-height:1.1rem;margin-bottom:1.2rem;}
+.vt-status.ok{color:var(–success);} .vt-status.err{color:var(–danger);} .vt-status.info{color:var(–muted);}
+.vt-modal-actions{display:flex;gap:0.6rem;}
+.vt-modal-actions .btn{flex:1;text-align:center;}
+
+/* EMPTY */
+.empty{text-align:center;padding:4rem 2rem;color:var(–muted);}
+.empty-icon{font-size:3rem;margin-bottom:1rem;opacity:0.3;}
+.empty-text{font-family:var(–mono);font-size:0.72rem;}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(7,8,15,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:998;backdrop-filter:blur(8px);}
+.loading-overlay.hidden{display:none;}
+.loading-spinner{width:52px;height:52px;border-radius:50%;border:3px solid var(–border2);border-top-color:var(–accent);animation:spin 0.8s linear infinite;margin-bottom:1.4rem;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:var(–mono);font-size:0.75rem;color:var(–accent);letter-spacing:0.12em;text-transform:uppercase;}
+.loading-sub{font-family:var(–mono);font-size:0.62rem;color:var(–muted);margin-top:0.5rem;}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(–bg);}
+::-webkit-scrollbar-thumb{background:var(–border2);border-radius:3px;}
+
+/* AI TAB */
+.tab-ai{color:var(–muted);}
+.tab-ai:hover{color:#a78bfa;}
+.tab-ai.active{color:#a78bfa;border-bottom-color:#a78bfa;}
+
+/* AI PANEL */
+.ai-panel{display:flex;flex-direction:column;gap:1.5rem;}
+.ai-key-banner{display:flex;align-items:center;gap:1rem;padding:1.2rem 1.4rem;border-radius:12px;background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;}
+.ai-key-banner-icon{font-size:1.4rem;flex-shrink:0;}
+.ai-key-banner-text{flex:1;font-family:var(–mono);font-size:0.68rem;color:var(–muted2);line-height:1.6;}
+.ai-key-banner-text strong{color:var(–text);}
+.ai-key-banner-btn{font-family:var(–mono);font-size:0.65rem;letter-spacing:0.06em;padding:0.45rem 1rem;border-radius:7px;cursor:pointer;border:1px solid rgba(124,58,237,0.4);background:rgba(124,58,237,0.12);color:#a78bfa;text-transform:uppercase;transition:all 0.2s;white-space:nowrap;}
+.ai-key-banner-btn:hover{background:rgba(124,58,237,0.22);border-color:#a78bfa;}
+.ai-key-banner-btn.configured{border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.1);color:var(–success);}
+
+.ai-output-card{background:var(–surface);border:1px solid rgba(124,58,237,0.2);border-radius:14px;overflow:hidden;}
+.ai-output-header{display:flex;align-items:center;gap:0.8rem;padding:1.2rem 1.4rem;border-bottom:1px solid var(–border);background:rgba(124,58,237,0.05);}
+.ai-output-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(–accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.ai-output-title{font-size:0.9rem;font-weight:700;}
+.ai-output-sub{font-family:var(–mono);font-size:0.6rem;color:var(–muted);margin-top:2px;}
+.ai-output-badge{margin-left:auto;font-family:var(–mono);font-size:0.58rem;padding:0.2rem 0.6rem;border-radius:4px;background:rgba(124,58,237,0.12);color:#a78bfa;border:1px solid rgba(124,58,237,0.25);text-transform:uppercase;}
+.ai-output-body{padding:1.4rem;}
+
+.ai-scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.8rem;margin-bottom:1.4rem;}
+.ai-score-card{background:var(–surface2);border:1px solid var(–border2);border-radius:9px;padding:1rem;text-align:center;}
+.ai-score-val{font-size:2rem;font-weight:800;letter-spacing:-0.03em;line-height:1;}
+.ai-score-label{font-family:var(–mono);font-size:0.58rem;color:var(–muted);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.3rem;}
+
+.ai-content{font-family:var(–mono);font-size:0.72rem;color:#a0a0bc;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
+.ai-section-title{color:var(–accent);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;display:block;margin-top:1.2rem;margin-bottom:0.5rem;}
+.ai-section-title:first-child{margin-top:0;}
+
+.ai-generating{display:flex;align-items:center;gap:1rem;padding:1.5rem 0;color:var(–muted);}
+.ai-spinner{width:22px;height:22px;border-radius:50%;border:2px solid var(–border2);border-top-color:#a78bfa;animation:spin 0.7s linear infinite;flex-shrink:0;}
+.ai-gen-text{font-family:var(–mono);font-size:0.7rem;}
+.ai-gen-text span{color:#a78bfa;}
+.ai-cursor{display:inline-block;width:8px;height:14px;background:var(–accent);animation:blink 1s step-end infinite;vertical-align:text-bottom;margin-left:2px;border-radius:1px;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.ai-run-btn{font-family:var(–mono);font-size:0.7rem;letter-spacing:0.08em;padding:0.6rem 1.4rem;border-radius:8px;cursor:pointer;border:1px solid rgba(124,58,237,0.4);background:rgba(124,58,237,0.12);color:#a78bfa;text-transform:uppercase;transition:all 0.2s;display:flex;align-items:center;gap:0.5rem;}
+.ai-run-btn:hover{background:rgba(124,58,237,0.22);border-color:#a78bfa;box-shadow:0 0 20px rgba(124,58,237,0.2);}
+
+/* PROVIDER BUTTONS */
+.provider-btn{font-family:var(–mono);font-size:0.62rem;letter-spacing:0.07em;padding:0.35rem 0.85rem;border-radius:6px;cursor:pointer;border:1px solid var(–border2);background:transparent;color:var(–muted2);text-transform:uppercase;transition:all 0.2s;}
+.provider-btn:hover{border-color:var(–border2);color:var(–text);}
+.provider-btn.active{border-color:rgba(124,58,237,0.5);background:rgba(124,58,237,0.12);color:#a78bfa;}
+
+/* MOBILE */
+@media(max-width:600px){
+.tl-entry{grid-template-columns:55px 26px 1fr;}
+.tl-badge,.vt-btn,.vt-result{display:none;}
+.stats-bar{grid-template-columns:1fr 1fr;}
+header{flex-direction:column;align-items:flex-start;gap:0.8rem;}
+.tab{padding:0.7rem 0.9rem;font-size:0.62rem;}
+}
+</style>
+
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Parsing SQLite Database</div>
+  <div class="loading-sub" id="loadingSubtext">Loading WebAssembly engine...</div>
+</div>
+
+<!-- VIRUSTOTAL MODAL -->
+
+<div class="vt-modal-overlay hidden" id="vtModal">
+  <div class="vt-modal">
+    <div class="vt-modal-header">
+      <div class="vt-modal-icon">🛡</div>
+      <div>
+        <div class="vt-modal-title">VirusTotal API Key</div>
+        <div class="vt-modal-sub">Stored in memory only · Never saved anywhere</div>
+      </div>
+      <button class="vt-modal-close" id="vtModalClose">✕</button>
+    </div>
+    <div class="vt-modal-info">
+      VirusTotal checks URLs and downloads against 70+ security engines.<br><br>
+      Get a free key at <a href="https://www.virustotal.com/gui/join-us" target="_blank" rel="noopener">virustotal.com/gui/join-us</a> — free tier: 4 lookups/min, 500/day.
+    </div>
+    <div class="vt-key-wrap">
+      <input class="vt-key-input" type="password" id="vtKeyInput" placeholder="Paste your VirusTotal API key..." autocomplete="off" spellcheck="false">
+      <button class="vt-eye-btn" id="vtEyeBtn">👁</button>
+    </div>
+    <div class="vt-status info" id="vtKeyStatus">Enter your VirusTotal API key above</div>
+    <div class="vt-modal-actions">
+      <button class="btn btn-ghost" id="vtCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="vtSaveBtn" disabled>Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI API KEY MODAL -->
+
+<div class="ai-modal-overlay hidden" id="aiKeyModal">
+  <div class="vt-modal" style="max-width:520px">
+    <div class="vt-modal-header">
+      <div class="vt-modal-icon" style="background:rgba(124,58,237,0.15)">🤖</div>
+      <div>
+        <div class="vt-modal-title">AI Provider Setup</div>
+        <div class="vt-modal-sub">Stored in memory only · Never saved anywhere</div>
+      </div>
+      <button class="vt-modal-close" id="aiKeyModalClose">✕</button>
+    </div>
+
+```
+<!-- Provider selector -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1.2rem;flex-wrap:wrap;">
+  <button class="provider-btn active" data-provider="claude">Claude</button>
+  <button class="provider-btn" data-provider="openai">OpenAI</button>
+  <button class="provider-btn" data-provider="gemini">Gemini</button>
+  <button class="provider-btn" data-provider="copilot">Copilot</button>
+</div>
+
+<!-- Provider info (swaps per selection) -->
+<div class="vt-modal-info" id="aiProviderInfo">
+  Uses Claude Sonnet by Anthropic. Get a free key at
+  <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.
+  Keys start with <span style="color:var(--accent)">sk-ant-</span>
+</div>
+
+<div class="vt-key-wrap">
+  <input class="vt-key-input" type="password" id="aiKeyInput" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+  <button class="vt-eye-btn" id="aiEyeBtn">👁</button>
+</div>
+<div class="vt-status info" id="aiKeyStatus">Select a provider and enter your API key</div>
+<div class="vt-modal-actions">
+  <button class="btn btn-ghost" id="aiKeyCancelBtn">Cancel</button>
+  <button class="btn btn-primary" id="aiKeySaveBtn" disabled>Save Key</button>
+</div>
+```
+
+  </div>
+</div>
+
+<div class="app">
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <div class="logo">History<span class="logo-dot"></span>Lens</div>
+      <div class="tagline">// Browser Intelligence</div>
+    </div>
+    <div class="header-right">
+      <button class="vt-key-btn" id="vtKeyBtn">🛡 VirusTotal</button>
+    </div>
+  </header>
+
+  <!-- UPLOAD -->
+
+  <div class="upload-section" id="uploadSection">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">🔍</div>
+      <div class="drop-title">Drop your browser history file here</div>
+      <div class="drop-sub">or click to browse &nbsp;·&nbsp; supports <span>JSON, CSV, TXT, SQLite DB</span></div>
+      <div class="format-pills">
+        <span class="pill active">Chrome JSON</span>
+        <span class="pill active">Firefox CSV</span>
+        <span class="pill active">Plain TXT</span>
+        <span class="pill active">Generic CSV</span>
+        <span class="pill active">SQLite DB</span>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".json,.csv,.txt,.db,.sqlite,.sqlite3">
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="sampleBtn">⚡ Load Sample Data</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+
+  <div id="mainContent" style="display:none">
+    <div class="toolbar">
+      <button class="btn-clear" id="clearBtn">🗑 Clear &amp; Reset</button>
+    </div>
+
+```
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="export-bar">
+  <span class="export-label">⬇ Export:</span>
+  <button class="export-btn export-btn-csv" id="exportCsvBtn">📊 CSV</button>
+  <button class="export-btn export-btn-json" id="exportJsonBtn">{ } JSON</button>
+  <span class="export-count" id="exportCount"></span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="timeline">⏱ Timeline</button>
+  <button class="tab" data-tab="domains">🌐 Domains</button>
+  <button class="tab" data-tab="downloads">⬇ Downloads</button>
+  <button class="tab" data-tab="report">📋 Report</button>
+  <button class="tab tab-ai" data-tab="ai">✦ AI Analysis</button>
+</div>
+
+<div class="panel active" id="panel-timeline">
+  <div class="filter-row">
+    <span class="filter-label">Filter:</span>
+    <button class="filter-btn on" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="download">Downloads</button>
+    <button class="filter-btn" data-filter="search">Searches</button>
+    <button class="filter-btn" data-filter="social">Social</button>
+    <button class="filter-btn" data-filter="video">Video</button>
+  </div>
+  <div id="timeline"></div>
+</div>
+<div class="panel" id="panel-domains"><div class="domain-grid" id="domainGrid"></div></div>
+<div class="panel" id="panel-downloads"><div id="downloadsTimeline"></div></div>
+<div class="panel" id="panel-report"><div class="report" id="report"></div></div>
+<div class="panel" id="panel-ai">
+  <div class="ai-panel" id="aiPanel">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+```
+
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────
+let allEntries = [];
+let activeFilter = 'all';
+let vtApiKey = '';
+let vtCache = {};
+let aiApiKey = '';        // Active AI key — memory only
+let aiProvider = 'claude'; // Active provider: claude | openai | gemini | copilot
+let aiGenerated = false;
+
+// ── SAMPLE DATA ────────────────────────────────────────────────────
+const SAMPLE = [
+  {time:"2024-03-15T08:02:11",url:"https://google.com/search?q=morning+news",title:"morning news - Google Search"},
+  {time:"2024-03-15T08:04:33",url:"https://bbc.com/news/world",title:"World News - BBC"},
+  {time:"2024-03-15T08:11:07",url:"https://twitter.com/home",title:"Twitter / Home"},
+  {time:"2024-03-15T08:22:45",url:"https://gmail.com/mail/u/0/#inbox",title:"Inbox - Gmail"},
+  {time:"2024-03-15T09:00:00",url:"https://github.com/torvalds/linux",title:"torvalds/linux - GitHub"},
+  {time:"2024-03-15T09:15:30",url:"https://stackoverflow.com/questions/58732",title:"How to reverse a string in Python - Stack Overflow"},
+  {time:"2024-03-15T09:31:18",url:"https://cdn.example.com/downloads/report_Q1.pdf",title:"report_Q1.pdf",download:true},
+  {time:"2024-03-15T09:45:00",url:"https://youtube.com/watch?v=dQw4w9WgXcQ",title:"Rick Astley - Never Gonna Give You Up - YouTube"},
+  {time:"2024-03-15T10:02:50",url:"https://reddit.com/r/programming",title:"r/programming - Reddit"},
+  {time:"2024-03-15T10:30:22",url:"https://docs.python.org/3/library/json.html",title:"json — JSON encoder - Python Docs"},
+  {time:"2024-03-15T10:55:11",url:"https://google.com/search?q=best+coffee+shops+near+me",title:"best coffee shops near me - Google Search"},
+  {time:"2024-03-15T11:20:44",url:"https://notion.so/workspace/project-notes",title:"Project Notes - Notion"},
+  {time:"2024-03-15T11:46:03",url:"https://drive.google.com/uc?export=download&id=1abc",title:"Q4_Budget.xlsx",download:true},
+  {time:"2024-03-15T12:02:00",url:"https://netflix.com/watch/80057281",title:"Stranger Things | Netflix"},
+  {time:"2024-03-15T14:03:15",url:"https://linkedin.com/feed",title:"LinkedIn Feed"},
+  {time:"2024-03-15T14:45:30",url:"https://google.com/search?q=python+async+await+tutorial",title:"python async await - Google Search"},
+  {time:"2024-03-15T15:00:10",url:"https://realpython.com/async-io-python/",title:"Async IO in Python - Real Python"},
+  {time:"2024-03-15T15:21:44",url:"https://github.com/psf/requests/releases/download/v2.31.0/requests-2.31.0.tar.gz",title:"requests-2.31.0.tar.gz",download:true},
+  {time:"2024-03-15T16:00:00",url:"https://slack.com/app/messages",title:"Slack - Messages"},
+  {time:"2024-03-15T16:14:22",url:"https://figma.com/file/xKn23/Design-System",title:"Design System – Figma"},
+  {time:"2024-03-16T08:05:00",url:"https://google.com/search?q=weather+today",title:"weather today - Google Search"},
+  {time:"2024-03-16T08:17:33",url:"https://news.ycombinator.com",title:"Hacker News"},
+  {time:"2024-03-16T09:00:44",url:"https://github.com/notifications",title:"Notifications - GitHub"},
+  {time:"2024-03-16T10:15:00",url:"https://wikipedia.org/wiki/Large_language_model",title:"Large language model - Wikipedia"},
+  {time:"2024-03-16T11:05:00",url:"https://arxiv.org/pdf/2303.08774.pdf",title:"2303.08774.pdf",download:true},
+  {time:"2024-03-16T14:00:00",url:"https://google.com/search?q=how+to+deploy+docker",title:"how to deploy docker - Google Search"},
+  {time:"2024-03-16T14:15:00",url:"https://docs.docker.com/engine/reference/run/",title:"docker run — Docker Docs"},
+  {time:"2024-03-16T14:45:11",url:"https://reddit.com/r/webdev",title:"r/webdev - Reddit"},
+  {time:"2024-03-16T16:00:00",url:"https://amazon.com/dp/B09XYZ1234",title:"Mechanical Keyboard - Amazon"},
+  {time:"2024-03-16T16:20:00",url:"https://youtube.com/watch?v=abc123xyz",title:"Top 10 Programming Languages 2024 - YouTube"},
+];
+
+// ── INIT: wire up all event listeners after DOM is ready ───────────
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Drop zone
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); });
+
+  document.getElementById('sampleBtn').addEventListener('click', () => processEntries(SAMPLE));
+  document.getElementById('clearBtn').addEventListener('click', clearAllData);
+  document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+  document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.getElementById('panel-' + tab.dataset.tab);
+      if (panel) panel.classList.add('active');
+      if (tab.dataset.tab === 'domains') {
+        setTimeout(() => document.querySelectorAll('.domain-bar-fill').forEach(el => { el.style.width = el.dataset.width; }), 50);
+      }
+      if (tab.dataset.tab === 'ai') {
+        aiGenerated = false;
+        renderAIPanel();
+      }
+    });
+  });
+
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      activeFilter = btn.dataset.filter;
+      renderTimeline(activeFilter);
+    });
+  });
+
+  // VT modal
+  document.getElementById('vtKeyBtn').addEventListener('click', openVtModal);
+  document.getElementById('vtModalClose').addEventListener('click', closeVtModal);
+  document.getElementById('vtCancelBtn').addEventListener('click', closeVtModal);
+  document.getElementById('vtModal').addEventListener('click', e => { if (e.target === document.getElementById('vtModal')) closeVtModal(); });
+  document.getElementById('vtEyeBtn').addEventListener('click', () => {
+    const inp = document.getElementById('vtKeyInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('vtKeyInput').addEventListener('input', () => {
+    const val = document.getElementById('vtKeyInput').value.trim();
+    const btn = document.getElementById('vtSaveBtn');
+    if (val.length >= 32) { setVtStatus('ok','✓ Key looks valid'); btn.disabled = false; }
+    else if (val.length > 0) { setVtStatus('info','VirusTotal keys are 64 characters'); btn.disabled = true; }
+    else { setVtStatus('info','Enter your VirusTotal API key above'); btn.disabled = true; }
+  });
+  document.getElementById('vtKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !document.getElementById('vtSaveBtn').disabled) document.getElementById('vtSaveBtn').click(); });
+  document.getElementById('vtSaveBtn').addEventListener('click', () => {
+    const val = document.getElementById('vtKeyInput').value.trim();
+    if (!val) return;
+    vtApiKey = val;
+    vtCache = {};
+    const btn = document.getElementById('vtKeyBtn');
+    btn.classList.add('active');
+    btn.textContent = '🛡 VT Ready';
+    closeVtModal();
+  });
+
+}); // end DOMContentLoaded
+
+// ── AI KEY MODAL ───────────────────────────────────────────────────
+const PROVIDERS = {
+  claude:  { name:'Claude',  placeholder:'sk-ant-api03-...', hint:'Keys start with sk-ant-', link:'https://console.anthropic.com', info:'Uses Claude Sonnet by Anthropic. Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. Keys start with <span style="color:var(--accent)">sk-ant-</span>' },
+  openai:  { name:'OpenAI',  placeholder:'sk-...', hint:'Keys start with sk-', link:'https://platform.openai.com/api-keys', info:'Uses GPT-4o by OpenAI. Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>. Keys start with <span style="color:var(--accent)">sk-</span>' },
+  gemini:  { name:'Gemini',  placeholder:'AIza...', hint:'Keys start with AIza', link:'https://aistudio.google.com/app/apikey', info:'Uses Gemini 1.5 Flash by Google. Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>. Keys start with <span style="color:var(--accent)">AIza</span>' },
+  copilot: { name:'Copilot', placeholder:'sk-...', hint:'Uses OpenAI-compatible endpoint', link:'https://github.com/marketplace/models', info:'Uses GitHub Models (Copilot). Get a token at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a>. Requires a GitHub account with Copilot access.' },
+};
+
+function openAiKeyModal() {
+  document.getElementById('aiKeyModal').classList.remove('hidden');
+  // Set active provider button
+  document.querySelectorAll('.provider-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.provider === aiProvider);
+  });
+  updateProviderUI(aiProvider);
+  const inp = document.getElementById('aiKeyInput');
+  if (aiApiKey) { inp.value = aiApiKey; setAiKeyStatus('ok','✓ Key configured — you can update it here'); document.getElementById('aiKeySaveBtn').disabled = false; }
+  else { inp.value = ''; setAiKeyStatus('info', PROVIDERS[aiProvider].hint); document.getElementById('aiKeySaveBtn').disabled = true; }
+  setTimeout(() => inp.focus(), 100);
+}
+
+function closeAiKeyModal() {
+  document.getElementById('aiKeyModal').classList.add('hidden');
+  document.getElementById('aiKeyInput').value = '';
+}
+
+function updateProviderUI(provider) {
+  const p = PROVIDERS[provider];
+  document.getElementById('aiProviderInfo').innerHTML = p.info;
+  document.getElementById('aiKeyInput').placeholder = p.placeholder;
+  setAiKeyStatus('info', p.hint);
+  document.getElementById('aiKeySaveBtn').disabled = true;
+  document.getElementById('aiKeyInput').value = '';
+}
+
+function setAiKeyStatus(type, msg) {
+  const el = document.getElementById('aiKeyStatus');
+  el.className = 'vt-status ' + type;
+  el.textContent = msg;
+}
+
+// Provider button clicks
+document.querySelectorAll('.provider-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    aiProvider = btn.dataset.provider;
+    aiApiKey = ''; // clear old key when switching provider
+    aiGenerated = false;
+    updateProviderUI(aiProvider);
+    updateAiKeyBtn();
+  });
+});
+
+document.getElementById('aiKeyModalClose').addEventListener('click', closeAiKeyModal);
+document.getElementById('aiKeyCancelBtn').addEventListener('click', closeAiKeyModal);
+document.getElementById('aiKeyModal').addEventListener('click', e => { if (e.target === document.getElementById('aiKeyModal')) closeAiKeyModal(); });
+document.getElementById('aiEyeBtn').addEventListener('click', () => {
+  const inp = document.getElementById('aiKeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+document.getElementById('aiKeyInput').addEventListener('input', () => {
+  const val = document.getElementById('aiKeyInput').value.trim();
+  const btn = document.getElementById('aiKeySaveBtn');
+  if (val.length >= 10) { setAiKeyStatus('ok','✓ Key looks valid — click Save to confirm'); btn.disabled = false; }
+  else if (val.length > 0) { setAiKeyStatus('info','Key seems too short'); btn.disabled = true; }
+  else { setAiKeyStatus('info', PROVIDERS[aiProvider].hint); btn.disabled = true; }
+});
+document.getElementById('aiKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !document.getElementById('aiKeySaveBtn').disabled) document.getElementById('aiKeySaveBtn').click(); });
+document.getElementById('aiKeySaveBtn').addEventListener('click', () => {
+  const val = document.getElementById('aiKeyInput').value.trim();
+  if (!val) return;
+  aiApiKey = val;
+  aiGenerated = false;
+  updateAiKeyBtn();
+  closeAiKeyModal();
+  if (document.getElementById('panel-ai').classList.contains('active')) renderAIPanel();
+});
+
+function updateAiKeyBtn() {
+  const btns = document.querySelectorAll('.ai-key-banner-btn');
+  btns.forEach(b => {
+    if (aiApiKey) { b.textContent = `🔑 ${PROVIDERS[aiProvider].name} ✓`; b.classList.add('configured'); }
+    else { b.textContent = '🔑 Add API Key'; b.classList.remove('configured'); }
+  });
+}
+
+// ── VIRUSTOTAL ─────────────────────────────────────────────────────
+function openVtModal() {
+  document.getElementById('vtModal').classList.remove('hidden');
+  const inp = document.getElementById('vtKeyInput');
+  if (vtApiKey) { inp.value = vtApiKey; setVtStatus('ok','✓ Key configured — you can update it here'); document.getElementById('vtSaveBtn').disabled = false; }
+  else { inp.value = ''; setVtStatus('info','Enter your VirusTotal API key above'); document.getElementById('vtSaveBtn').disabled = true; }
+  setTimeout(() => inp.focus(), 100);
+}
+function closeVtModal() {
+  document.getElementById('vtModal').classList.add('hidden');
+  document.getElementById('vtKeyInput').value = '';
+}
+function setVtStatus(type, msg) {
+  const el = document.getElementById('vtKeyStatus');
+  el.className = 'vt-status ' + type;
+  el.textContent = msg;
+}
+
+async function scanWithVT(url, btnEl) {
+  if (!vtApiKey) { openVtModal(); return; }
+  if (vtCache[url]) { renderVtResult(url, vtCache[url]); return; }
+  btnEl.disabled = true; btnEl.textContent = '...';
+  try {
+    const sub = await fetch('https://www.virustotal.com/api/v3/urls', {
+      method:'POST',
+      headers:{'x-apikey':vtApiKey,'Content-Type':'application/x-www-form-urlencoded'},
+      body:'url='+encodeURIComponent(url)
+    });
+    if (!sub.ok) throw new Error('Submit failed: '+sub.status);
+    const subData = await sub.json();
+    const id = subData?.data?.id;
+    if (!id) throw new Error('No analysis ID');
+    let result = null;
+    for (let i=0; i<3; i++) {
+      await new Promise(r=>setTimeout(r,2000));
+      const rep = await fetch(`https://www.virustotal.com/api/v3/analyses/${id}`,{headers:{'x-apikey':vtApiKey}});
+      if (!rep.ok) continue;
+      const repData = await rep.json();
+      if (repData?.data?.attributes?.status==='completed') { result=repData.data.attributes.stats; break; }
+    }
+    if (!result) throw new Error('Timed out — try again');
+    const r = {malicious:result.malicious||0,suspicious:result.suspicious||0,harmless:result.harmless||0};
+    vtCache[url]=r; renderVtResult(url,r);
+  } catch(err) {
+    document.querySelectorAll('.vt-btn').forEach(b=>{
+      if(b.dataset.url===url){const s=document.createElement('span');s.className='vt-result vt-error';s.title=err.message;s.textContent='⚠ Error';b.replaceWith(s);}
+    });
+  }
+}
+
+function renderVtResult(url, s) {
+  document.querySelectorAll('.vt-btn').forEach(b=>{
+    if(b.dataset.url!==url) return;
+    const badge=document.createElement('span');
+    badge.className='vt-result '+(s.malicious>0?'vt-malicious':s.suspicious>0?'vt-suspicious':'vt-clean');
+    badge.title=`Malicious:${s.malicious} · Suspicious:${s.suspicious} · Clean:${s.harmless}`;
+    badge.textContent=s.malicious>0?`🔴 ${s.malicious} malicious`:s.suspicious>0?`⚠ ${s.suspicious} suspicious`:'✅ Clean';
+    b.replaceWith(badge);
+  });
+}
+
+function wireVtButtons(container) {
+  container.querySelectorAll('.vt-btn').forEach(btn => {
+    btn.addEventListener('click', () => scanWithVT(btn.dataset.url, btn));
+  });
+}
+
+// ── FILE READING ───────────────────────────────────────────────────
+function readFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (['db','sqlite','sqlite3'].includes(ext) || /history|places/i.test(file.name)) {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    document.getElementById('loadingSubtext').textContent = 'Loading WebAssembly engine...';
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        document.getElementById('loadingSubtext').textContent = 'Querying history tables...';
+        const entries = await parseSQLite(new Uint8Array(ev.target.result));
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        if (!entries.length) { alert('No history found. Ensure this is a Chrome/Firefox/Safari history database.'); return; }
+        processEntries(entries);
+      } catch(err) {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        alert('Could not read SQLite: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    let entries = [];
+    try { entries = parseChrome(JSON.parse(text)); } catch { entries = text.includes(',') ? parseCsv(text) : parseTxt(text); }
+    if (!entries.length) { alert('Could not parse file. Try loading sample data to see expected format.'); return; }
+    processEntries(entries);
+  };
+  reader.readAsText(file);
+}
+
+// ── SQLITE PARSERS ─────────────────────────────────────────────────
+async function parseSQLite(bytes) {
+  const SQL = await initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}`});
+  const db = new SQL.Database(bytes);
+  const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
+  const tn = tables[0]?.values?.flat().map(t=>String(t).toLowerCase())||[];
+  let entries = [];
+  if (tn.includes('urls')&&tn.includes('visits')) entries=parseChromeDB(db);
+  else if (tn.includes('moz_places')) entries=parseFirefoxDB(db);
+  else if (tn.includes('history_items')&&tn.includes('history_visits')) entries=parseSafariDB(db);
+  else entries=parseGenericDB(db,tn);
+  db.close(); return entries;
+}
+function parseChromeDB(db) {
+  const OFF=11644473600000;
+  try {
+    const r=db.exec(`SELECT u.url,u.title,v.visit_time FROM urls u LEFT JOIN visits v ON u.id=v.url WHERE u.url IS NOT NULL ORDER BY v.visit_time ASC`);
+    if(!r[0]) return [];
+    return r[0].values.map(([url,title,vt])=>({url:String(url||''),title:String(title||url||''),time:new Date((Number(vt)/1000)-OFF).toISOString(),download:isDL(String(url||''))})).filter(e=>e.url.startsWith('http'));
+  } catch{return [];}
+}
+function parseFirefoxDB(db) {
+  try {
+    const r=db.exec(`SELECT p.url,p.title,h.visit_date FROM moz_places p LEFT JOIN moz_historyvisits h ON p.id=h.place_id WHERE p.url IS NOT NULL AND p.hidden=0 ORDER BY h.visit_date ASC`);
+    if(!r[0]) return [];
+    return r[0].values.map(([url,title,vd])=>({url:String(url||''),title:String(title||url||''),time:new Date(Number(vd)/1000).toISOString(),download:isDL(String(url||''))})).filter(e=>e.url.startsWith('http'));
+  } catch{return [];}
+}
+function parseSafariDB(db) {
+  try {
+    const AE=978307200000;
+    const r=db.exec(`SELECT i.url,v.visit_time FROM history_items i LEFT JOIN history_visits v ON i.id=v.history_item ORDER BY v.visit_time ASC`);
+    if(!r[0]) return [];
+    return r[0].values.map(([url,vt])=>({url:String(url||''),title:String(url||''),time:new Date((Number(vt)*1000)+AE).toISOString(),download:isDL(String(url||''))})).filter(e=>e.url.startsWith('http'));
+  } catch{return [];}
+}
+function parseGenericDB(db,tn) {
+  for(const t of tn){
+    try{
+      const c=db.exec(`PRAGMA table_info(${t})`);if(!c[0])continue;
+      const cn=c[0].values.map(r=>String(r[1]).toLowerCase());
+      const uc=cn.find(c=>c.includes('url')||c.includes('address'));if(!uc)continue;
+      const tc=cn.find(c=>c.includes('title')||c.includes('name'));
+      const dc=cn.find(c=>c.includes('time')||c.includes('date')||c.includes('visit'));
+      const r=db.exec(`SELECT ${[uc,tc||uc,dc||'null'].join(',')} FROM ${t} LIMIT 5000`);
+      if(!r[0]||!r[0].values.length)continue;
+      return r[0].values.map(row=>{const url=String(row[0]||'');const ms=row[2]?(String(row[2]).length>12?Number(row[2])/1000:Number(row[2])*1000):Date.now();return{url,title:String(row[1]||url),time:new Date(isNaN(ms)?Date.now():ms).toISOString(),download:isDL(url)};}).filter(e=>e.url.startsWith('http'));
+    }catch{continue;}
+  }
+  return [];
+}
+function parseChrome(json) {
+  if(Array.isArray(json)) return json.map(e=>({time:e.time_usec?new Date(e.time_usec/1000).toISOString():(e.visitTime||e.lastVisitTime||e.time||''),url:e.url||'',title:e.title||e.url||'',download:isDL(e.url||'')})).filter(e=>e.url);
+  if(json.Browser_History) return parseChrome(json.Browser_History);
+  return [];
+}
+function parseCsv(text) {
+  const lines=text.trim().split('\n');
+  const h=lines[0].toLowerCase().split(',').map(s=>s.trim().replace(/"/g,''));
+  const ui=h.findIndex(s=>s.includes('url')||s.includes('address'));
+  const ti=h.findIndex(s=>s.includes('title')||s.includes('name'));
+  const di=h.findIndex(s=>s.includes('time')||s.includes('date')||s.includes('visit'));
+  return lines.slice(1).map(line=>{const c=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));const url=c[ui]||c[0]||'';return{url,title:c[ti]||url,time:c[di]||new Date().toISOString(),download:isDL(url)};}).filter(e=>e.url&&e.url.startsWith('http'));
+}
+function parseTxt(text){return text.trim().split('\n').filter(l=>l.startsWith('http')).map(url=>({url:url.trim(),title:url.trim(),time:new Date().toISOString(),download:isDL(url)}));}
+function isDL(url){return /\.(pdf|zip|tar|gz|rar|exe|dmg|pkg|deb|msi|xlsx?|docx?|pptx?|mp3|mp4|iso|apk|csv)(\?|$)/i.test(url)||url.includes('download')||url.includes('export=download');}
+
+// ── PROCESS ────────────────────────────────────────────────────────
+function processEntries(raw) {
+  allEntries = raw.map(e=>({...e,dateObj:new Date(e.time),domain:getDomain(e.url),type:classify(e)})).sort((a,b)=>a.dateObj-b.dateObj);
+  document.getElementById('uploadSection').style.display='none';
+  document.getElementById('mainContent').style.display='block';
+  document.getElementById('exportCount').textContent=allEntries.length.toLocaleString()+' entries ready';
+  renderStats(); renderTimeline('all'); renderDomains(); renderDownloads(); renderReport();
+  setTimeout(()=>document.querySelectorAll('.domain-bar-fill').forEach(el=>{el.style.width=el.dataset.width;}),100);
+}
+function getDomain(url){try{return new URL(url).hostname.replace('www.','');}catch{return url;}}
+function classify(e){
+  const u=e.url.toLowerCase();
+  if(e.download||isDL(u)) return 'download';
+  if(u.includes('google.com/search')||u.includes('bing.com/search')||u.includes('duckduckgo')||u.includes('search?q=')) return 'search';
+  if(/twitter\.com|facebook\.com|instagram\.com|linkedin\.com|reddit\.com|tiktok\.com/.test(u)) return 'social';
+  if(/youtube\.com|netflix\.com|twitch\.tv|hulu\.com|spotify\.com|vimeo\.com/.test(u)) return 'video';
+  return 'page';
+}
+
+// ── RENDER STATS ───────────────────────────────────────────────────
+function renderStats(){
+  const t=allEntries.length,dl=allEntries.filter(e=>e.type==='download').length,sr=allEntries.filter(e=>e.type==='search').length;
+  const dm=new Set(allEntries.map(e=>e.domain)).size,dy=new Set(allEntries.map(e=>e.dateObj.toISOString().slice(0,10))).size;
+  document.getElementById('statsBar').innerHTML=`
+    <div class="stat"><div class="stat-val cyan">${t}</div><div class="stat-label">Total Visits</div></div>
+    <div class="stat"><div class="stat-val purple">${dm}</div><div class="stat-label">Unique Domains</div></div>
+    <div class="stat"><div class="stat-val amber">${dl}</div><div class="stat-label">Downloads</div></div>
+    <div class="stat"><div class="stat-val green">${sr}</div><div class="stat-label">Searches</div></div>
+    <div class="stat"><div class="stat-val">${dy}</div><div class="stat-label">Days Tracked</div></div>`;
+}
+
+// ── RENDER TIMELINE ────────────────────────────────────────────────
+const TICON={download:'⬇',search:'🔍',social:'💬',video:'▶',page:'🌐'};
+const TBADGE={download:`<span class="tl-badge badge-dl">Download</span>`,search:`<span class="tl-badge badge-search">Search</span>`,social:`<span class="tl-badge badge-social">Social</span>`,video:`<span class="tl-badge badge-video">Video</span>`,page:''};
+const TICON_CLS={download:'icon-download',search:'icon-search',social:'icon-social',video:'icon-video',page:'icon-page'};
+
+function renderTimeline(filter){
+  const entries=filter==='all'?allEntries:allEntries.filter(e=>e.type===filter);
+  const byDay={};
+  entries.forEach(e=>{const d=e.dateObj.toISOString().slice(0,10);if(!byDay[d])byDay[d]=[];byDay[d].push(e);});
+  const tl=document.getElementById('timeline');
+  if(!entries.length){tl.innerHTML='<div class="empty"><div class="empty-icon">🕳</div><div class="empty-text">No entries match this filter</div></div>';return;}
+  tl.innerHTML=Object.entries(byDay).map(([day,es])=>`
+    <div class="tl-day">
+      <div class="tl-day-header">${fmtDH(day+'T00:00:00Z')} &nbsp;·&nbsp; ${es.length} visit${es.length>1?'s':''}</div>
+      <div class="tl-entries">
+        ${es.map((e,i)=>`
+          <div class="tl-entry ${e.type}" style="animation-delay:${i*0.025}s;grid-template-columns:68px 30px 1fr auto auto;">
+            <div class="tl-time">${fmtT(e.dateObj)}</div>
+            <div class="tl-icon ${TICON_CLS[e.type]}">${TICON[e.type]}</div>
+            <div class="tl-info">
+              <div class="tl-title" title="${esc(e.title)}">${esc(e.title||e.url)}</div>
+              <div class="tl-url" title="${esc(e.url)}">${esc(e.url)}</div>
+            </div>
+            ${TBADGE[e.type]||''}
+            <button class="vt-btn" data-url="${esc(e.url)}">🛡 Scan</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  wireVtButtons(tl);
+}
+
+// ── RENDER DOMAINS ─────────────────────────────────────────────────
+function renderDomains(){
+  const counts={};allEntries.forEach(e=>{counts[e.domain]=(counts[e.domain]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);const max=sorted[0]?.[1]||1;
+  document.getElementById('domainGrid').innerHTML=sorted.slice(0,30).map(([d,c],i)=>`
+    <div class="domain-row">
+      <div class="domain-rank">${i+1}</div>
+      <div class="domain-bar-wrap">
+        <div class="domain-name">${d}</div>
+        <div class="domain-bar-bg"><div class="domain-bar-fill" data-width="${(c/max*100).toFixed(1)}%" style="width:0%"></div></div>
+      </div>
+      <div class="domain-count">${c}×</div>
+    </div>`).join('');
+}
+
+// ── RENDER DOWNLOADS ───────────────────────────────────────────────
+function renderDownloads(){
+  const dls=allEntries.filter(e=>e.type==='download');
+  const tl=document.getElementById('downloadsTimeline');
+  if(!dls.length){tl.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">No downloads detected</div></div>';return;}
+  tl.innerHTML=`
+    <div class="tl-day">
+      <div class="tl-day-header">⬇ ${dls.length} Download${dls.length>1?'s':''} Found &nbsp;·&nbsp; <span style="color:var(--muted2);font-size:0.9em">Click 🛡 Scan to check with VirusTotal</span></div>
+      <div class="tl-entries">
+        ${dls.map((e,i)=>`
+          <div class="tl-entry download" style="animation-delay:${i*0.04}s;grid-template-columns:68px 30px 1fr auto auto;">
+            <div class="tl-time">${fmtT(e.dateObj)}<br><span style="color:var(--muted);font-size:0.55rem">${fmtD(e.dateObj)}</span></div>
+            <div class="tl-icon icon-download">⬇</div>
+            <div class="tl-info"><div class="tl-title">${esc(e.title||fname(e.url))}</div><div class="tl-url">${esc(e.url)}</div></div>
+            <span class="tl-badge badge-dl">${ext(e.url)}</span>
+            <button class="vt-btn" data-url="${esc(e.url)}">🛡 Scan</button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  wireVtButtons(tl);
+}
+
+// ── RENDER REPORT ──────────────────────────────────────────────────
+function renderReport(){
+  const total=allEntries.length,dls=allEntries.filter(e=>e.type==='download'),searches=allEntries.filter(e=>e.type==='search'),social=allEntries.filter(e=>e.type==='social'),video=allEntries.filter(e=>e.type==='video');
+  const domains={};allEntries.forEach(e=>{domains[e.domain]=(domains[e.domain]||0)+1;});
+  const top=Object.entries(domains).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const days=new Set(allEntries.map(e=>e.dateObj.toISOString().slice(0,10))).size;
+  const ph={};allEntries.forEach(e=>{const h=e.dateObj.getUTCHours();ph[h]=(ph[h]||0)+1;});
+  const peak=Object.entries(ph).sort((a,b)=>b[1]-a[1])[0];
+  const sq=searches.map(e=>{try{return new URL(e.url).searchParams.get('q')||'';}catch{return '';}}).filter(Boolean).slice(0,8);
+  const exe=dls.filter(e=>/\.(exe|dmg|pkg|deb|msi|apk)/i.test(e.url));
+  const cards=[];
+  cards.push(`<div class="report-card info"><div class="rc-head"><span class="rc-icon">📊</span><span class="rc-title">Activity Overview</span></div><div class="rc-body"><ul>
+    <li>Analyzed <span class="highlight">${total} visits</span> across <span class="highlight">${days} day${days>1?'s':''}</span></li>
+    <li>Average <span class="highlight">${(total/Math.max(days,1)).toFixed(1)} visits/day</span></li>
+    <li>Peak hour: <span class="highlight">${peak?peak[0]+':00 UTC ('+peak[1]+' visits)':'N/A'}</span></li>
+    <li>Browsed <span class="highlight">${Object.keys(domains).length} unique domains</span></li>
+  </ul></div></div>`);
+  cards.push(`<div class="report-card neutral"><div class="rc-head"><span class="rc-icon">🏆</span><span class="rc-title">Most Visited Sites</span></div><div class="rc-body"><ul>${top.map(([d,c])=>`<li><span class="highlight">${d}</span> — ${c} visit${c>1?'s':''}</li>`).join('')}</ul></div></div>`);
+  if(searches.length) cards.push(`<div class="report-card neutral"><div class="rc-head"><span class="rc-icon">🔍</span><span class="rc-title">Search Activity</span><span class="rc-badge"><span class="tl-badge badge-search">${searches.length} searches</span></span></div><div class="rc-body">${sq.length?`<ul>${sq.map(q=>`<li>"${esc(q)}"</li>`).join('')}${sq.length<searches.length?`<li style="color:var(--muted)">...and ${searches.length-sq.length} more</li>`:''}</ul>`:`<p>${searches.length} searches recorded.</p>`}</div></div>`);
+  if(dls.length) cards.push(`<div class="report-card ${exe.length?'warning':'neutral'}"><div class="rc-head"><span class="rc-icon">⬇</span><span class="rc-title">Downloads</span><span class="rc-badge"><span class="tl-badge badge-dl">${dls.length} files</span></span></div><div class="rc-body"><ul>${dls.map(e=>`<li><span class="${exe.includes(e)?'warn':'highlight'}">${esc(fname(e.url))}</span> from ${getDomain(e.url)}</li>`).join('')}</ul>${exe.length?`<p class="warn" style="margin-top:0.6rem">⚠ ${exe.length} executable${exe.length>1?'s':''} downloaded — verify sources.</p>`:''}</div></div>`);
+  if(social.length||video.length) cards.push(`<div class="report-card neutral"><div class="rc-head"><span class="rc-icon">📱</span><span class="rc-title">Social &amp; Entertainment</span></div><div class="rc-body"><ul>${social.length?`<li>Social: <span class="highlight">${social.length} visits</span> (${[...new Set(social.map(e=>e.domain))].join(', ')})</li>`:''}${video.length?`<li>Video/streaming: <span class="highlight">${video.length} visits</span></li>`:''}</ul></div></div>`);
+  document.getElementById('report').innerHTML=cards.join('');
+}
+
+// ── AI ANALYSIS ────────────────────────────────────────────────────
+function renderAIPanel() {
+  const panel = document.getElementById('aiPanel');
+  const providerName = PROVIDERS[aiProvider]?.name || 'AI';
+
+  const keyBannerHtml = `
+    <div class="ai-key-banner">
+      <div class="ai-key-banner-icon">🤖</div>
+      <div class="ai-key-banner-text">
+        <strong>AI-Powered Behavioral Analysis</strong><br>
+        ${aiApiKey ? `Using <strong>${providerName}</strong>. ` : ''}Only anonymised statistics are sent — no raw URLs or personal data leave your device.
+      </div>
+      <button class="ai-key-banner-btn ${aiApiKey ? 'configured' : ''}" onclick="openAiKeyModal()">
+        ${aiApiKey ? `🔑 ${providerName} ✓` : '🔑 Add API Key'}
+      </button>
+    </div>`;
+
+  if (!aiApiKey) {
+    panel.innerHTML = keyBannerHtml + `
+      <div style="text-align:center;padding:3rem 2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;">
+        <div style="font-size:2.5rem;margin-bottom:1rem;opacity:0.4">🔑</div>
+        <div style="font-weight:700;margin-bottom:0.5rem">API Key Required</div>
+        <div style="font-family:var(--mono);font-size:0.7rem;color:var(--muted);margin-bottom:1.5rem">Choose a provider and add your API key to enable AI analysis</div>
+        <button class="ai-run-btn" style="margin:0 auto" onclick="openAiKeyModal()">✦ Choose Provider & Add Key</button>
+      </div>`;
+    return;
+  }
+
+  if (!allEntries.length) {
+    panel.innerHTML = keyBannerHtml + `
+      <div style="text-align:center;padding:3rem 2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;">
+        <div style="font-size:2.5rem;margin-bottom:1rem;opacity:0.4">📂</div>
+        <div style="font-weight:700;margin-bottom:0.5rem">No Data Loaded</div>
+        <div style="font-family:var(--mono);font-size:0.7rem;color:var(--muted)">Upload a browser history file first, then return here for analysis</div>
+      </div>`;
+    return;
+  }
+
+  panel.innerHTML = keyBannerHtml + `
+    <div class="ai-output-card" id="aiOutputCard">
+      <div class="ai-output-header">
+        <div class="ai-output-logo">🤖</div>
+        <div>
+          <div class="ai-output-title">${providerName} Analysis</div>
+          <div class="ai-output-sub">Anonymised statistics only — no raw URLs sent</div>
+        </div>
+        <div class="ai-output-badge">${providerName}</div>
+      </div>
+      <div class="ai-output-body">
+        <div class="ai-scores hidden" id="aiScores"></div>
+        <div class="ai-generating" id="aiGenerating">
+          <div class="ai-spinner"></div>
+          <div class="ai-gen-text">Analyzing <span>${allEntries.length} browsing events</span> with ${providerName}...</div>
+        </div>
+        <div class="ai-content" id="aiContent"></div>
+      </div>
+    </div>`;
+
+  if (!aiGenerated) runAIAnalysis();
+}
+
+async function runAIAnalysis() {
+  aiGenerated = true;
+  const summary = buildAISummary();
+  const prompt = `You are HistoryLens AI, a browser behavior analyst. Analyze this browser history summary and provide a structured, insightful report. Be specific and genuinely useful.
+
+BROWSER HISTORY SUMMARY:
+${summary}
+
+Respond in this EXACT format using === markers:
+
+=== PRODUCTIVITY SCORE ===
+Give a score like "72/100" on the first line, then 1-2 sentences explaining it.
+
+=== BEHAVIORAL PROFILE ===
+3-4 sentences describing this person's browsing personality and patterns. Be specific.
+
+=== TOP INTERESTS ===
+List 4-6 specific interest areas detected, one per line starting with •
+
+=== PRIVACY & SECURITY ===
+2-3 sentences on any risks, download concerns, or security observations.
+
+=== RECOMMENDATIONS ===
+Give 3 specific, actionable recommendations. One per line starting with →
+
+Keep the total under 350 words. Be insightful and specific, not generic.`;
+
+  try {
+    let text = '';
+
+    if (aiProvider === 'claude') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key':aiApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+      const d = await res.json();
+      text = d.content?.[0]?.text || '';
+
+    } else if (aiProvider === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+aiApiKey },
+        body: JSON.stringify({ model:'gpt-4o', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+      const d = await res.json();
+      text = d.choices?.[0]?.message?.content || '';
+
+    } else if (aiProvider === 'gemini') {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ contents:[{parts:[{text:prompt}]}] })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+      const d = await res.json();
+      text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    } else if (aiProvider === 'copilot') {
+      // GitHub Models — OpenAI-compatible endpoint
+      const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+aiApiKey },
+        body: JSON.stringify({ model:'gpt-4o', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e?.error?.message||'HTTP '+res.status); }
+      const d = await res.json();
+      text = d.choices?.[0]?.message?.content || '';
+    }
+
+    if (!text) throw new Error('No response received from ' + PROVIDERS[aiProvider].name);
+
+    document.getElementById('aiGenerating').style.display = 'none';
+    renderAIResponse(text);
+
+  } catch(err) {
+    // Clear key on auth errors
+    if (err.message.includes('401') || err.message.includes('403') || err.message.toLowerCase().includes('invalid') || err.message.toLowerCase().includes('unauthorized')) {
+      aiApiKey = '';
+      aiGenerated = false;
+      updateAiKeyBtn();
+    }
+    document.getElementById('aiGenerating').style.display = 'none';
+    document.getElementById('aiContent').innerHTML =
+      `<span style="color:var(--danger)">⚠ Analysis failed.</span>\n\n${esc(err.message)}\n\n<span style="color:var(--muted)">Click "Add API Key" above to check your key.</span>`;
+  }
+}
+
+function renderAIResponse(text) {
+  // Extract score for score cards
+  const scoreMatch = text.match(/=== PRODUCTIVITY SCORE ===\s*(\d+)\/100/);
+  if (scoreMatch) {
+    const score = parseInt(scoreMatch[1]);
+    const color = score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--accent3)' : 'var(--danger)';
+    const total = allEntries.length;
+    const social = allEntries.filter(e => e.type === 'social').length;
+    const searches = allEntries.filter(e => e.type === 'search').length;
+    const focusPct = Math.round(((total - social) / Math.max(total, 1)) * 100);
+    const scoresEl = document.getElementById('aiScores');
+    scoresEl.classList.remove('hidden');
+    scoresEl.innerHTML = `
+      <div class="ai-score-card"><div class="ai-score-val" style="color:${color}">${score}</div><div class="ai-score-label">Productivity</div></div>
+      <div class="ai-score-card"><div class="ai-score-val" style="color:var(--accent)">${focusPct}%</div><div class="ai-score-label">Focus Rate</div></div>
+      <div class="ai-score-card"><div class="ai-score-val" style="color:#a78bfa">${searches}</div><div class="ai-score-label">Searches</div></div>
+      <div class="ai-score-card"><div class="ai-score-val" style="color:var(--accent3)">${new Set(allEntries.map(e=>e.domain)).size}</div><div class="ai-score-label">Domains</div></div>`;
+  }
+
+  // Format sections into styled HTML
+  const formatted = text
+    .replace(/=== (.+?) ===/g, '<span class="ai-section-title">$1</span>')
+    .replace(/•/g, '  •')
+    .replace(/→/g, '  →');
+
+  const contentEl = document.getElementById('aiContent');
+  contentEl.innerHTML = `<span id="aiReveal">${formatted}</span>`;
+  contentEl.style.animation = 'fadeIn 0.5s ease';
+}
+
+function buildAISummary() {
+  const total = allEntries.length;
+  const days = [...new Set(allEntries.map(e => e.dateObj.toISOString().slice(0,10)))];
+  const domains = {};
+  allEntries.forEach(e => { domains[e.domain] = (domains[e.domain]||0)+1; });
+  const topDomains = Object.entries(domains).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const searches = allEntries.filter(e => e.type === 'search');
+  const dls = allEntries.filter(e => e.type === 'download');
+  const social = allEntries.filter(e => e.type === 'social');
+  const video = allEntries.filter(e => e.type === 'video');
+  const sq = searches.map(e => { try { return new URL(e.url).searchParams.get('q')||''; } catch { return ''; } }).filter(Boolean).slice(0,15);
+  const ph = {};
+  allEntries.forEach(e => { const h = e.dateObj.getUTCHours(); ph[h]=(ph[h]||0)+1; });
+  const peak = Object.entries(ph).sort((a,b)=>b[1]-a[1])[0];
+
+  return `Total visits: ${total}
+Days analyzed: ${days.length} (${days[0]} to ${days[days.length-1]})
+Avg visits/day: ${(total/Math.max(days.length,1)).toFixed(1)}
+Peak hour UTC: ${peak ? peak[0]+':00 ('+peak[1]+' visits)' : 'unknown'}
+Top domains: ${topDomains.map(([d,c])=>d+'('+c+')').join(', ')}
+Searches: ${searches.length} | Social: ${social.length} | Video: ${video.length} | Downloads: ${dls.length} | Pages: ${total-searches.length-social.length-video.length-dls.length}
+Search queries: ${sq.join(' | ')}
+Downloads: ${dls.map(e=>fname(e.url)).slice(0,10).join(', ')}`.trim();
+}
+
+// ── CLEAR ──────────────────────────────────────────────────────────
+function clearAllData(){
+  if(!confirm('Clear all data and start over? This removes everything from memory.'))return;
+  allEntries=[];activeFilter='all';vtCache={};aiGenerated=false;
+  document.getElementById('mainContent').style.display='none';
+  document.getElementById('uploadSection').style.display='block';
+  document.getElementById('fileInput').value='';
+  document.getElementById('exportCount').textContent='';
+  ['timeline','domainGrid','downloadsTimeline','report','statsBar','aiPanel'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="timeline"]').classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-timeline').classList.add('active');
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelector('.filter-btn[data-filter="all"]').classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── EXPORTS ────────────────────────────────────────────────────────
+function exportCSV(){
+  const rows=allEntries.map(e=>[e.dateObj.toISOString().slice(0,10),e.dateObj.toISOString().slice(11,16)+' UTC',`"${(e.title||'').replace(/"/g,'""')}"`,`"${(e.url||'').replace(/"/g,'""')}"`,e.domain,e.type]);
+  dlFile([['Date','Time','Title','URL','Domain','Type'].join(','),...rows.map(r=>r.join(','))].join('\n'),'historylens-export.csv','text/csv');
+}
+function exportJSON(){
+  dlFile(JSON.stringify({exported_at:new Date().toISOString(),total_entries:allEntries.length,summary:{unique_domains:new Set(allEntries.map(e=>e.domain)).size,downloads:allEntries.filter(e=>e.type==='download').length,searches:allEntries.filter(e=>e.type==='search').length,days_tracked:new Set(allEntries.map(e=>e.dateObj.toISOString().slice(0,10))).size},entries:allEntries.map(e=>({timestamp:e.time,title:e.title,url:e.url,domain:e.domain,type:e.type}))},null,2),'historylens-export.json','application/json');
+}
+function dlFile(content,name,mime){const b=new Blob([content],{type:mime});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);}
+
+// ── HELPERS ────────────────────────────────────────────────────────
+function fmtT(d){if(!(d instanceof Date)||isNaN(d))return'--:--';return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';}
+function fmtD(d){if(!(d instanceof Date)||isNaN(d))return'';return d.toLocaleDateString('en-GB',{month:'short',day:'numeric',timeZone:'UTC'});}
+function fmtDH(s){const d=new Date(s);return d.toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'UTC'})+' (UTC)';}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fname(url){try{const p=new URL(url).pathname;return p.split('/').pop()||url;}catch{return url;}}
+function ext(url){const m=url.match(/\.([a-z0-9]+)(\?|$)/i);return m?m[1].toUpperCase():'FILE';}
+</script>
+
+</body>
+</html>
