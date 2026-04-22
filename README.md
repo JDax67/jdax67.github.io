@@ -5,6 +5,7 @@
 ---
 
 ### How to Use It
+1. **URL:** https://jdax67.github.io/historylens.html
 1.  **Find your history file:** Usually called `History` (Chrome) or `places.sqlite` (Firefox)
 2.  **Drop it in:** Drag your history file into the box.
 3.  **Explore:** See how many hours you spent on social media or what files you've downloaded.
